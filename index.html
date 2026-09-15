@@ -79,7 +79,6 @@
           <div class="flex items-center space-x-2 text-xs">
             <span class="text-gray-500">解鎖者：</span>
             <span class="font-bold text-amber-600">{{ currentUser.name }}</span>
-            <button @click="showChangePinModal = true" class="text-amber-700 hover:underline ml-1">修改密碼</button>
             <button @click="logout" class="text-gray-400 hover:text-red-500 underline ml-2">切換身份</button>
           </div>
         </div>
@@ -88,27 +87,6 @@
           <input type="date" v-model="selectedDate" @change="listenToOrders" class="border rounded-lg px-3 py-1 text-sm bg-gray-50 focus:outline-amber-500">
         </div>
       </header>
-
-      <!-- 修改密碼彈窗 -->
-      <div v-if="showChangePinModal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-xl p-5 max-w-xs w-full space-y-3 shadow-xl">
-          <h3 class="font-bold text-gray-800 text-center">修改 {{ currentUser.name }} 的 PIN 碼</h3>
-          <div>
-            <label class="text-xs text-gray-500">輸入新 4 位數 PIN 碼</label>
-            <input 
-              type="password" 
-              maxlength="4" 
-              v-model="newPinInput" 
-              placeholder="4 位數字" 
-              class="w-full border rounded-lg p-2 text-center text-lg tracking-widest bg-gray-50 focus:outline-amber-500 mt-1"
-            >
-          </div>
-          <div class="flex space-x-2 pt-2">
-            <button @click="showChangePinModal = false" class="w-1/2 bg-gray-200 text-gray-700 py-2 rounded-lg font-bold text-xs">取消</button>
-            <button @click="updateUserPin" class="w-1/2 bg-amber-700 text-white py-2 rounded-lg font-bold text-xs">儲存新密碼</button>
-          </div>
-        </div>
-      </div>
 
       <!-- 每日點餐清單（所有成員） -->
       <main class="space-y-3">
@@ -342,7 +320,6 @@
       setup() {
         const defaultMembers = [
           { id: 'user_1', name: '西堤', pin: '0737' },
-          
         ];
 
         const members = ref([...defaultMembers]);
@@ -352,9 +329,6 @@
         const inputPin = ref('');
         const authError = ref('');
         const currentUserId = ref(null);
-
-        const showChangePinModal = ref(false);
-        const newPinInput = ref('');
 
         const selectedDate = ref(new Date().toISOString().split('T')[0]);
         const sweetnessOptions = ['瑞穗', '無乳糖(有點甜)'];
@@ -415,21 +389,6 @@
           } else {
             authError.value = 'PIN 碼錯誤！';
           }
-        };
-
-        const updateUserPin = () => {
-          if (!newPinInput.value || newPinInput.value.length !== 4) {
-            alert('請輸入 4 位數 PIN 碼');
-            return;
-          }
-          db.ref(`user_pins/${currentUserId.value}`).set(newPinInput.value).then(() => {
-            alert('PIN 碼修改成功！下次請使用新密碼登入。');
-            showChangePinModal.value = false;
-            newPinInput.value = '';
-          }).catch(err => {
-            console.error('修改 PIN 碼失敗:', err);
-            alert('修改失敗，請檢查網路連線。');
-          });
         };
 
         const logout = () => {
@@ -593,9 +552,6 @@
           currentUser,
           loginWithPin,
           logout,
-          showChangePinModal,
-          newPinInput,
-          updateUserPin,
           selectedDate,
           sweetnessOptions,
           iceOptions,
