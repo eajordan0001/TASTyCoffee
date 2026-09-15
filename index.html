@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>早安咖啡</title>
+  <title>Young佬院咖啡</title>
 
   <!-- PWA 核心設定檔案引入 -->
   <link rel="manifest" href="./manifest.json">
@@ -341,18 +341,8 @@
     createApp({
       setup() {
         const defaultMembers = [
-          { id: 'user_1', name: '曉萍', pin: '0000' },
-          { id: 'user_2', name: '嘉綾', pin: '1212' },
-          { id: 'user_3', name: 'Dora', pin: '1313' },
-          { id: 'user_4', name: '晶晶', pin: '1414' },
-          { id: 'user_5', name: 'Wendy', pin: '1515' },
-          { id: 'user_6', name: '怡如', pin: '1616' },
-          { id: 'user_7', name: '婷婷', pin: '1717' },
-          { id: 'user_8', name: '佳佳', pin: '1818' },
-          { id: 'user_9', name: '瑄瑄', pin: '1919' },
-          { id: 'user_10', name: '小天使', pin: '2020' },
-          { id: 'user_11', name: '小真', pin: '2121' },
-          { id: 'user_12', name: '邦妮', pin: '2323' },
+          { id: 'user_1', name: '西堤', pin: '0737' },
+          
         ];
 
         const members = ref([...defaultMembers]);
@@ -501,7 +491,7 @@
 
         // 取得品項單價
         const getPrice = (item) => {
-          if (item === '拿鐵') return 55;
+          if (item === '拿鐵') return 60;
           if (item === '美式') return 50;
           if (item === '巧克力牛奶') return 60;
           if (item === '摩卡咖啡') return 70;
