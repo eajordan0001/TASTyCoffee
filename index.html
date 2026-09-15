@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>早安咖啡</title>
+
+  <!-- PWA 核心設定檔案引入 -->
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#78350f">
+  <link rel="apple-touch-icon" href="icon-192.png">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  
+  <!-- 引入 Firebase SDK (實現 11 人跨手機即時連線同步) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+  <style>
+    /* 點餐狀態標籤：20px 字型、足夠寬度防止換行並保持右對齊靠左拉開 */
+    .status-label-fixed {
+      font-size: 20px;
+      line-height: 28px;
+      display: inline-block;
+      width: 5.2em;
+      text-align: center;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-4 text-gray-800">
+
+  <div id="app" class="max-w-md mx-auto space-y-4">
+
+    <!-- 1. PIN 碼身份驗證視窗 (未解鎖時顯示) -->
+    <div v-if="!currentUserId" class="bg-white rounded-xl p-6 shadow-md space-y-4 mt-10">
+      <h2 class="text-xl font-bold text-amber-800 text-center">☕ 咖啡點餐身份解鎖</h2>
+      
+      <div class="space-y-1">
+        <label class="text-xs text-gray-500">選擇你的名字</label>
+        <select v-model="selectedUserToAuth" class="w-full border rounded-lg p-2.5 text-sm bg-gray-50 focus:outline-amber-500 font-medium">
+          <option value="" disabled>-- 請選擇成員 --</option>
+          <option v-for="u in members" :key="u.id" :value="u.id">{{ u.name }}</option>
+        </select>
+      </div>
+
+      <div class="space-y-1">
+        <label class="text-xs text-gray-500">4 位數 PIN 碼</label>
+        <input 
+          type="password" 
+          maxlength="4" 
+          v-model="inputPin" 
+          placeholder="請輸入 PIN 碼" 
+          class="w-full border rounded-lg p-2.5 text-center text-lg tracking-widest bg-gray-50 focus:outline-amber-500"
+          @keyup.enter="loginWithPin"
+        >
+      </div>
+
+      <div v-if="authError" class="text-xs text-red-500 font-medium text-center">
+        {{ authError }}
+      </div>
+
+      <button 
+        @click="loginWithPin" 
+        class="w-full bg-amber-700 hover:bg-amber-800 text-white font-bold py-2.5 rounded-lg transition-colors shadow"
+      >
+        確認解鎖
+      </button>
+    </div>
+
+    <!-- 2. 主要點餐介面 (驗證通過後顯示) -->
+    <template v-else>
+      <!-- 頂部列：登入狀態與日期切換 -->
+      <header class="bg-white rounded-xl p-4 shadow-sm space-y-3">
+        <div class="flex justify-between items-center border-b pb-2">
+          <h1 class="text-lg font-bold text-amber-800">☕ 每日咖啡點餐</h1>
+          <div class="flex items-center space-x-2 text-xs">
+            <span class="text-gray-500">解鎖者：</span>
+            <span class="font-bold text-amber-600">{{ currentUser.name }}</span>
+            <button @click="showChangePinModal = true" class="text-amber-700 hover:underline ml-1">修改密碼</button>
+            <button @click="logout" class="text-gray-400 hover:text-red-500 underline ml-2">切換身份</button>
+          </div>
+        </div>
+        <div class="flex items-center justify-between">
+          <label class="text-sm font-medium text-gray-600">選擇日期：</label>
+          <input type="date" v-model="selectedDate" @change="listenToOrders" class="border rounded-lg px-3 py-1 text-sm bg-gray-50 focus:outline-amber-500">
+        </div>
+      </header>
+
+      <!-- 修改密碼彈窗 -->
+      <div v-if="showChangePinModal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl p-5 max-w-xs w-full space-y-3 shadow-xl">
+          <h3 class="font-bold text-gray-800 text-center">修改 {{ currentUser.name }} 的 PIN 碼</h3>
+          <div>
+            <label class="text-xs text-gray-500">輸入新 4 位數 PIN 碼</label>
+            <input 
+              type="password" 
+              maxlength="4" 
+              v-model="newPinInput" 
+              placeholder="4 位數字" 
+              class="w-full border rounded-lg p-2 text-center text-lg tracking-widest bg-gray-50 focus:outline-amber-500 mt-1"
+            >
+          </div>
+          <div class="flex space-x-2 pt-2">
+            <button @click="showChangePinModal = false" class="w-1/2 bg-gray-200 text-gray-700 py-2 rounded-lg font-bold text-xs">取消</button>
+            <button @click="updateUserPin" class="w-1/2 bg-amber-700 text-white py-2 rounded-lg font-bold text-xs">儲存新密碼</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 每日點餐清單（所有成員） -->
+      <main class="space-y-3">
+        <div 
+          v-for="member in members" 
+          :key="member.id"
+          class="bg-white rounded-xl p-4 shadow-sm border-2 transition-all"
+          :class="member.id === currentUserId ? 'border-amber-400 ring-2 ring-amber-100' : 'border-transparent'"
+        >
+          <div class="flex justify-between items-center mb-3">
+            <div class="flex items-center space-x-2">
+              <span class="font-bold text-base">{{ member.name }}</span>
+              <span v-if="member.id === currentUserId" class="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-medium">本人 (可編輯)</span>
+            </div>
+            <!-- 狀態標籤：20px，寬度向左拉開 -->
+            <div class="flex items-center space-x-2">
+              <span v-if="dailyOrders[member.id] && dailyOrders[member.id].length > 0" class="text-emerald-600 status-label-fixed">
+                (成功點餐)
+              </span>
+              <span v-else class="text-gray-400 status-label-fixed">
+                (尚未點餐)
+              </span>
+              <span class="text-sm font-semibold text-gray-600 min-w-[3rem] text-right">
+                ${{ getUserTotal(dailyOrders[member.id]) }}
+              </span>
+            </div>
+          </div>
+
+          <!-- 非本人：僅顯示點餐結果清單 -->
+          <div v-if="member.id !== currentUserId" class="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg space-y-2">
+            <template v-if="dailyOrders[member.id] && dailyOrders[member.id].length > 0">
+              <div v-for="(item, idx) in dailyOrders[member.id]" :key="idx" class="border-b last:border-0 pb-1.5 last:pb-0">
+                <div class="font-medium text-gray-800 flex justify-between">
+                  <span>{{ item.item }} x{{ item.qty }}</span>
+                  <span>${{ getItemUnitPrice(item) * item.qty }}</span>
+                </div>
+                <div class="text-xs text-gray-500">
+                  {{ item.item === '美式' ? item.ice : `${item.sweetness} / ${item.ice}` }}
+                  <span v-if="item.addShot || item.addMilk" class="text-amber-700 font-medium ml-1">
+                    [{{ [item.addShot ? '加濃縮' : '', item.addMilk ? '加牛奶' : ''].filter(Boolean).join(' + ') }}]
+                  </span>
+                  <span v-if="item.note">｜備註: {{ item.note }}</span>
+                </div>
+              </div>
+            </template>
+            <template v-else>
+              <span class="text-gray-400 italic">尚未點餐</span>
+            </template>
+          </div>
+
+          <!-- 本人：購物車與點餐表單 -->
+          <div v-else class="space-y-4 text-sm">
+            
+            <!-- 目前已加入購物車清單 -->
+            <div v-if="cart.length > 0" class="bg-amber-50/60 rounded-lg p-3 border border-amber-200 space-y-2">
+              <div class="text-xs font-bold text-amber-900 border-b border-amber-200 pb-1 flex justify-between">
+                <span>🛒 我的點餐清單 (共 {{ myTotalCups }} 杯)</span>
+                <span>小計: ${{ getUserTotal(cart) }}</span>
+              </div>
+              <div v-for="(item, idx) in cart" :key="idx" class="flex justify-between items-center text-xs py-1 border-b border-amber-100 last:border-0">
+                <div>
+                  <span class="font-bold text-amber-900">{{ item.item }}</span>
+                  <span class="text-amber-800 ml-1">x{{ item.qty }}</span>
+                  <span class="text-gray-500 ml-1">
+                    ({{ item.item === '美式' ? item.ice : `${item.sweetness}/${item.ice}` }})
+                  </span>
+                  <span v-if="item.addShot || item.addMilk" class="text-amber-700 font-medium ml-1">
+                    [{{ [item.addShot ? '加濃縮' : '', item.addMilk ? '加牛奶' : ''].filter(Boolean).join(' + ') }}]
+                  </span>
+                  <div v-if="item.note" class="text-gray-400 italic">備註: {{ item.note }}</div>
+                </div>
+                <div class="flex items-center space-x-2">
+                  <span class="font-bold text-amber-800">${{ getItemUnitPrice(item) * item.qty }}</span>
+                  <button @click="removeFromCart(idx)" class="text-red-500 font-bold px-1 hover:bg-red-100 rounded">✕</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 新增飲品表單 -->
+            <div class="bg-gray-50 p-3 rounded-lg space-y-3 border">
+              <div class="text-xs font-bold text-gray-600">➕ 新增飲品到清單</div>
+              
+              <!-- 品項選擇（新增巧克力牛奶、摩卡咖啡） -->
+              <div class="grid grid-cols-2 gap-2">
+                <button 
+                  type="button"
+                  v-for="item in ['拿鐵', '美式', '巧克力牛奶', '摩卡咖啡']" 
+                  :key="item"
+                  @click="selectItem(item)"
+                  class="py-2 border rounded-lg text-center font-medium transition-colors text-xs"
+                  :class="currentItem.item === item ? 'bg-amber-600 text-white border-amber-600 font-bold' : 'bg-white text-gray-700 border-gray-200'"
+                >
+                  {{ item }} (${{ getPrice(item) }})
+                </button>
+              </div>
+
+              <!-- 數量、奶類(糖度)、冰塊 (根據品項動態調整欄位) -->
+              <div class="grid gap-2" :class="currentItem.item === '美式' ? 'grid-cols-2' : 'grid-cols-3'">
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1">數量</label>
+                  <select v-model.number="currentItem.qty" class="w-full border rounded-lg p-2 bg-white">
+                    <option v-for="n in 5" :key="n" :value="n">{{ n }} 杯</option>
+                  </select>
+                </div>
+                
+                <!-- 僅在非美式時顯示奶類選項 -->
+                <div v-if="currentItem.item !== '美式'">
+                  <label class="block text-xs text-gray-500 mb-1">奶類</label>
+                  <select v-model="currentItem.sweetness" class="w-full border rounded-lg p-2 bg-white">
+                    <option v-for="opt in sweetnessOptions" :key="opt" :value="opt">{{ opt }}</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1">冰塊</label>
+                  <select v-model="currentItem.ice" class="w-full border rounded-lg p-2 bg-white">
+                    <option v-for="opt in iceOptions" :key="opt" :value="opt">{{ opt }}</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- 加價加選項目按鈕區 -->
+              <div>
+                <label class="block text-xs text-gray-500 mb-1">加價加選 (可複選)</label>
+                <div class="grid grid-cols-2 gap-2">
+                  <button 
+                    type="button"
+                    @click="currentItem.addShot = !currentItem.addShot"
+                    class="py-1.5 border rounded-lg text-xs font-medium transition-colors flex items-center justify-center space-x-1"
+                    :class="currentItem.addShot ? 'bg-amber-100 border-amber-500 text-amber-900 font-bold' : 'bg-white border-gray-200 text-gray-600'"
+                  >
+                    <span>➕ 濃縮 (+10元)</span>
+                  </button>
+
+                  <button 
+                    type="button"
+                    @click="currentItem.addMilk = !currentItem.addMilk"
+                    class="py-1.5 border rounded-lg text-xs font-medium transition-colors flex items-center justify-center space-x-1"
+                    :class="currentItem.addMilk ? 'bg-amber-100 border-amber-500 text-amber-900 font-bold' : 'bg-white border-gray-200 text-gray-600'"
+                  >
+                    <span>➕ 多一份牛奶 (+10元)</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- 備註 -->
+              <div>
+                <label class="block text-xs text-gray-500 mb-1">備註說明</label>
+                <input 
+                  type="text" 
+                  v-model="currentItem.note" 
+                  placeholder="例如：熱飲、特殊需求..."
+                  class="w-full border rounded-lg px-3 py-1.5 bg-white focus:outline-amber-500 text-sm"
+                >
+              </div>
+
+              <button 
+                type="button" 
+                @click="addToCart"
+                class="w-full bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold py-2 rounded-lg transition-colors text-xs"
+              >
+                ＋ 加入點餐清單 (單杯 ${{ currentCalculatedPrice }})
+              </button>
+            </div>
+
+            <!-- 儲存當天點餐按鈕 -->
+            <button 
+              type="button"
+              @click="saveMyOrders" 
+              class="w-full bg-amber-700 hover:bg-amber-800 text-white font-bold py-2.5 rounded-lg transition-colors shadow-sm"
+            >
+              儲存我的當日點餐 (${{ getUserTotal(cart) }})
+            </button>
+          </div>
+        </div>
+      </main>
+
+      <!-- 底部總計與 Line 一鍵複製按鈕 -->
+      <footer class="bg-amber-900 text-white rounded-xl p-4 space-y-3 shadow-lg">
+        <div class="flex justify-between items-center">
+          <div>
+            <div class="text-xs text-amber-200">當日點餐總金額</div>
+            <div class="text-xl font-bold">${{ totalAmount }}</div>
+          </div>
+          <div class="text-sm text-amber-200">
+            總杯數：{{ totalCups }} 杯 ({{ orderedUserCount }}/{{ members.length }}人)
+          </div>
+        </div>
+
+        <button 
+          @click="copyLineSummary" 
+          class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg transition-colors shadow flex items-center justify-center space-x-2"
+        >
+          <span>📋 複製 Line 點餐摘要清單</span>
+        </button>
+      </footer>
+    </template>
+
+  </div>
+
+  <script>
+    // 註冊 PWA Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then((reg) => console.log('PWA Service Worker 註冊成功：', reg.scope))
+          .catch((err) => console.error('PWA Service Worker 註冊失敗：', err));
+      });
+    }
+
+    // 您的 Firebase 專案金鑰設定
+    const firebaseConfig = {
+      apiKey: "AIzaSyAAsvAqFhkjbTJ238o7szaeiZI-ntPcTRs",
+      authDomain: "morning-coffee-cd165.firebaseapp.com",
+      databaseURL: "https://morning-coffee-cd165-default-rtdb.firebaseio.com",
+      projectId: "morning-coffee-cd165",
+      storageBucket: "morning-coffee-cd165.firebasestorage.app",
+      messagingSenderId: "324502960704",
+      appId: "1:324502960704:web:a8b6ef48c2b89eeeff3da5"
+    };
+
+    // 初始化 Firebase
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.database();
+
+    const { createApp, ref, computed, onMounted } = Vue;
+
+    createApp({
+      setup() {
+        const defaultMembers = [
+          { id: 'user_1', name: '曉萍', pin: '0000' },
+          { id: 'user_2', name: '嘉綾', pin: '1212' },
+          { id: 'user_3', name: 'Dora', pin: '1313' },
+          { id: 'user_4', name: '晶晶', pin: '1414' },
+          { id: 'user_5', name: 'Wendy', pin: '1515' },
+          { id: 'user_6', name: '怡如', pin: '1616' },
+          { id: 'user_7', name: '婷婷', pin: '1717' },
+          { id: 'user_8', name: '佳佳', pin: '1818' },
+          { id: 'user_9', name: '瑄瑄', pin: '1919' },
+          { id: 'user_10', name: '小天使', pin: '2020' },
+          { id: 'user_11', name: '小真', pin: '2121' },
+          { id: 'user_12', name: '邦妮', pin: '2323' },
+        ];
+
+        const members = ref([...defaultMembers]);
+        const userPins = ref({});
+
+        const selectedUserToAuth = ref('');
+        const inputPin = ref('');
+        const authError = ref('');
+        const currentUserId = ref(null);
+
+        const showChangePinModal = ref(false);
+        const newPinInput = ref('');
+
+        const selectedDate = ref(new Date().toISOString().split('T')[0]);
+        const sweetnessOptions = ['瑞穗', '無乳糖(有點甜)'];
+        const iceOptions = ['熱', '正常冰', '少冰', '半冰', '微冰', '去冰'];
+
+        // 每日點餐資料：即時與 Firebase 資料庫同步
+        const dailyOrders = ref({});
+
+        // 本人購物車與當前編輯的單品
+        const cart = ref([]);
+        const currentItem = ref({
+          item: '拿鐵',
+          qty: 1,
+          sweetness: '瑞穗',
+          ice: '微冰',
+          addShot: false,
+          addMilk: false,
+          note: ''
+        });
+
+        // 選擇品項切換處理（美式清空奶類，其餘品項自動預設奶類）
+        const selectItem = (itemName) => {
+          currentItem.value.item = itemName;
+          if (itemName === '美式') {
+            currentItem.value.sweetness = '';
+          } else if (!currentItem.value.sweetness) {
+            currentItem.value.sweetness = '瑞穗';
+          }
+        };
+
+        // 監聽雲端 PIN 碼變更
+        const listenToPins = () => {
+          db.ref('user_pins').on('value', (snapshot) => {
+            const data = snapshot.val() || {};
+            userPins.value = data;
+            members.value.forEach(m => {
+              if (data[m.id]) {
+                m.pin = data[m.id];
+              }
+            });
+          });
+        };
+
+        const loginWithPin = () => {
+          authError.value = '';
+          if (!selectedUserToAuth.value) {
+            authError.value = '請選擇你的名字';
+            return;
+          }
+          const user = members.value.find(m => m.id === selectedUserToAuth.value);
+          const validPin = userPins.value[user.id] || user.pin;
+
+          if (user && validPin === inputPin.value) {
+            currentUserId.value = user.id;
+            localStorage.setItem('coffee_app_current_user', user.id);
+            inputPin.value = '';
+            listenToOrders();
+          } else {
+            authError.value = 'PIN 碼錯誤！';
+          }
+        };
+
+        const updateUserPin = () => {
+          if (!newPinInput.value || newPinInput.value.length !== 4) {
+            alert('請輸入 4 位數 PIN 碼');
+            return;
+          }
+          db.ref(`user_pins/${currentUserId.value}`).set(newPinInput.value).then(() => {
+            alert('PIN 碼修改成功！下次請使用新密碼登入。');
+            showChangePinModal.value = false;
+            newPinInput.value = '';
+          }).catch(err => {
+            console.error('修改 PIN 碼失敗:', err);
+            alert('修改失敗，請檢查網路連線。');
+          });
+        };
+
+        const logout = () => {
+          currentUserId.value = null;
+          localStorage.removeItem('coffee_app_current_user');
+          selectedUserToAuth.value = '';
+          inputPin.value = '';
+        };
+
+        let currentDbRef = null;
+        const listenToOrders = () => {
+          if (currentDbRef) {
+            currentDbRef.off();
+          }
+          currentDbRef = db.ref(`orders/${selectedDate.value}`);
+          currentDbRef.on('value', (snapshot) => {
+            const val = snapshot.val();
+            dailyOrders.value = val || {};
+
+            if (currentUserId.value && dailyOrders.value[currentUserId.value]) {
+              cart.value = JSON.parse(JSON.stringify(dailyOrders.value[currentUserId.value]));
+            } else {
+              cart.value = [];
+            }
+          });
+        };
+
+        const addToCart = () => {
+          cart.value.push({ ...currentItem.value });
+          currentItem.value = {
+            item: '拿鐵',
+            qty: 1,
+            sweetness: '瑞穗',
+            ice: '微冰',
+            addShot: false,
+            addMilk: false,
+            note: ''
+          };
+        };
+
+        const removeFromCart = (index) => {
+          cart.value.splice(index, 1);
+        };
+
+        const saveMyOrders = () => {
+          if (!currentUserId.value) return;
+          const userOrderRef = db.ref(`orders/${selectedDate.value}/${currentUserId.value}`);
+          userOrderRef.set(JSON.parse(JSON.stringify(cart.value))).then(() => {
+            alert('當日點餐已同步至雲端！其他人立刻看得到！');
+          }).catch((err) => {
+            console.error('儲存失敗:', err);
+            alert('連線儲存失敗，請檢查網路連線。');
+          });
+        };
+
+        const currentUser = computed(() => {
+          return members.value.find(m => m.id === currentUserId.value) || {};
+        });
+
+        // 取得品項單價
+        const getPrice = (item) => {
+          if (item === '拿鐵') return 55;
+          if (item === '美式') return 50;
+          if (item === '巧克力牛奶') return 60;
+          if (item === '摩卡咖啡') return 70;
+          return 0;
+        };
+
+        const getItemUnitPrice = (itemObj) => {
+          let base = getPrice(itemObj.item);
+          if (itemObj.addShot) base += 10;
+          if (itemObj.addMilk) base += 10;
+          return base;
+        };
+
+        const currentCalculatedPrice = computed(() => {
+          return getItemUnitPrice(currentItem.value);
+        });
+
+        const getUserTotal = (userOrders) => {
+          if (!userOrders || !Array.isArray(userOrders)) return 0;
+          return userOrders.reduce((sum, item) => sum + (getItemUnitPrice(item) * item.qty), 0);
+        };
+
+        const myTotalCups = computed(() => {
+          return cart.value.reduce((sum, item) => sum + item.qty, 0);
+        });
+
+        const totalCups = computed(() => {
+          return members.value.reduce((sum, m) => {
+            const userOrders = dailyOrders.value[m.id];
+            if (userOrders && Array.isArray(userOrders)) {
+              return sum + userOrders.reduce((s, item) => s + item.qty, 0);
+            }
+            return sum;
+          }, 0);
+        });
+
+        const totalAmount = computed(() => {
+          return members.value.reduce((sum, m) => {
+            return sum + getUserTotal(dailyOrders.value[m.id]);
+          }, 0);
+        });
+
+        const orderedUserCount = computed(() => {
+          return members.value.filter(m => dailyOrders.value[m.id] && dailyOrders.value[m.id].length > 0).length;
+        });
+
+        const copyLineSummary = () => {
+          let text = `☕【咖啡點餐統計】${selectedDate.value}\n`;
+          text += `------------------------------\n`;
+
+          let hasOrder = false;
+          members.value.forEach(m => {
+            const orders = dailyOrders.value[m.id];
+            if (orders && orders.length > 0) {
+              hasOrder = true;
+              text += `👤 ${m.name}：\n`;
+              orders.forEach(item => {
+                const addOns = [item.addShot ? '加濃縮' : '', item.addMilk ? '加牛奶' : ''].filter(Boolean).join('+');
+                const specText = item.item === '美式' ? item.ice : `${item.sweetness}/${item.ice}`;
+                text += `  • ${item.item} x${item.qty} (${specText})`;
+                if (addOns) text += ` [${addOns}]`;
+                if (item.note) text += ` 備註:${item.note}`;
+                text += ` $${getItemUnitPrice(item) * item.qty}\n`;
+              });
+            }
+          });
+
+          if (!hasOrder) {
+            alert('當天尚無任何成員完成點餐！');
+            return;
+          }
+
+          text += `------------------------------\n`;
+          text += `📊 總計：${totalCups.value} 杯 / $${totalAmount.value} 元`;
+
+          navigator.clipboard.writeText(text).then(() => {
+            alert('已成功複製 Line 點餐摘要！');
+          }).catch(err => {
+            console.error('複製失敗:', err);
+            alert('複製失敗，請手動複製。');
+          });
+        };
+
+        onMounted(() => {
+          listenToPins();
+          const savedUser = localStorage.getItem('coffee_app_current_user');
+          if (savedUser) {
+            currentUserId.value = savedUser;
+            listenToOrders();
+          }
+        });
+
+        return {
+          members,
+          selectedUserToAuth,
+          inputPin,
+          authError,
+          currentUserId,
+          currentUser,
+          loginWithPin,
+          logout,
+          showChangePinModal,
+          newPinInput,
+          updateUserPin,
+          selectedDate,
+          sweetnessOptions,
+          iceOptions,
+          dailyOrders,
+          cart,
+          currentItem,
+          selectItem,
+          addToCart,
+          removeFromCart,
+          saveMyOrders,
+          listenToOrders,
+          getPrice,
+          getItemUnitPrice,
+          currentCalculatedPrice,
+          getUserTotal,
+          myTotalCups,
+          totalCups,
+          totalAmount,
+          orderedUserCount,
+          copyLineSummary
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
