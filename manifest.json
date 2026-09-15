@@ -1,6 +1,6 @@
 {
-  "name": "Young老院咖啡點餐系統",
-  "short_name": "早安咖啡",
+  "name": "Young佬院咖啡點餐系統",
+  "short_name": "Young佬院咖啡",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#f3f4f6",
