@@ -7,7 +7,7 @@
 
   <!-- PWA 核心設定檔案引入 -->
   <link rel="manifest" href="./manifest.json">
-  <meta name="theme-color" content="#78350f">
+  <meta name="theme-color" content="#1e3a8a">
   <link rel="apple-touch-icon" href="icon-192.png">
 
   <script src="https://cdn.tailwindcss.com"></script>
@@ -18,10 +18,10 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
   <style>
-    /* 點餐狀態標籤：20px 字型、足夠寬度防止換行並保持右對齊靠左拉開 */
+    /* 點餐狀態標籤：40px 字型 (放大一倍)、足夠寬度防止換行並保持右對齊靠左拉開 */
     .status-label-fixed {
-      font-size: 20px;
-      line-height: 28px;
+      font-size: 40px;
+      line-height: 52px;
       display: inline-block;
       width: 5.2em;
       text-align: center;
@@ -30,41 +30,41 @@
     }
   </style>
 </head>
-<body class="bg-gray-100 min-h-screen p-4 text-gray-800">
+<body class="bg-sky-100 min-h-screen p-6 text-gray-800">
 
-  <div id="app" class="max-w-md mx-auto space-y-4">
+  <div id="app" class="max-w-2xl mx-auto space-y-8">
 
     <!-- 1. PIN 碼身份驗證視窗 (未解鎖時顯示) -->
-    <div v-if="!currentUserId" class="bg-white rounded-xl p-6 shadow-md space-y-4 mt-10">
-      <h2 class="text-xl font-bold text-amber-800 text-center">☕ 咖啡點餐身份解鎖</h2>
+    <div v-if="!currentUserId" class="bg-white rounded-3xl p-10 shadow-2xl space-y-8 mt-12 border-4 border-blue-200">
+      <h2 class="text-3xl font-extrabold text-blue-900 text-center">☕ 咖啡點餐身份解鎖</h2>
       
-      <div class="space-y-1">
-        <label class="text-xs text-gray-500">選擇你的名字</label>
-        <select v-model="selectedUserToAuth" class="w-full border rounded-lg p-2.5 text-sm bg-gray-50 focus:outline-amber-500 font-medium">
+      <div class="space-y-3">
+        <label class="text-base font-bold text-gray-600">選擇你的名字</label>
+        <select v-model="selectedUserToAuth" class="w-full border-2 border-blue-200 rounded-2xl p-4 text-xl bg-sky-50 focus:outline-blue-600 font-bold">
           <option value="" disabled>-- 請選擇成員 --</option>
           <option v-for="u in members" :key="u.id" :value="u.id">{{ u.name }}</option>
         </select>
       </div>
 
-      <div class="space-y-1">
-        <label class="text-xs text-gray-500">4 位數 PIN 碼</label>
+      <div class="space-y-3">
+        <label class="text-base font-bold text-gray-600">4 位數 PIN 碼</label>
         <input 
           type="password" 
           maxlength="4" 
           v-model="inputPin" 
           placeholder="請輸入 PIN 碼" 
-          class="w-full border rounded-lg p-2.5 text-center text-lg tracking-widest bg-gray-50 focus:outline-amber-500"
+          class="w-full border-2 border-blue-200 rounded-2xl p-4 text-center text-3xl tracking-widest bg-sky-50 focus:outline-blue-600 font-bold"
           @keyup.enter="loginWithPin"
         >
       </div>
 
-      <div v-if="authError" class="text-xs text-red-500 font-medium text-center">
+      <div v-if="authError" class="text-lg text-red-500 font-bold text-center">
         {{ authError }}
       </div>
 
       <button 
         @click="loginWithPin" 
-        class="w-full bg-amber-700 hover:bg-amber-800 text-white font-bold py-2.5 rounded-lg transition-colors shadow"
+        class="w-full bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-2xl py-5 rounded-2xl transition-all shadow-lg active:scale-95"
       >
         確認解鎖
       </button>
@@ -73,150 +73,154 @@
     <!-- 2. 主要點餐介面 (驗證通過後顯示) -->
     <template v-else>
       <!-- 頂部列：登入狀態與日期切換 -->
-      <header class="bg-white rounded-xl p-4 shadow-sm space-y-3">
-        <div class="flex justify-between items-center border-b pb-2">
-          <h1 class="text-lg font-bold text-amber-800">☕ 每日咖啡點餐</h1>
-          <div class="flex items-center space-x-2 text-xs">
+      <header class="bg-white rounded-3xl p-8 shadow-md space-y-6 border-2 border-blue-200">
+        <div class="flex justify-between items-center border-b-2 border-blue-100 pb-4">
+          <h1 class="text-3xl font-extrabold text-blue-900">☕ 每日咖啡點餐</h1>
+          <div class="flex items-center space-x-3 text-lg">
             <span class="text-gray-500">解鎖者：</span>
-            <span class="font-bold text-amber-600">{{ currentUser.name }}</span>
-            <button @click="logout" class="text-gray-400 hover:text-red-500 underline ml-2">切換身份</button>
+            <span class="font-extrabold text-amber-600">{{ currentUser.name }}</span>
+            <button @click="logout" class="text-gray-400 hover:text-red-500 underline ml-4 font-bold">切換身份</button>
           </div>
         </div>
         <div class="flex items-center justify-between">
-          <label class="text-sm font-medium text-gray-600">選擇日期：</label>
-          <input type="date" v-model="selectedDate" @change="listenToOrders" class="border rounded-lg px-3 py-1 text-sm bg-gray-50 focus:outline-amber-500">
+          <label class="text-xl font-bold text-gray-700">選擇日期：</label>
+          <input type="date" v-model="selectedDate" @change="listenToOrders" class="border-2 border-blue-200 rounded-2xl px-5 py-3 text-lg bg-sky-50 focus:outline-blue-600 font-bold">
         </div>
       </header>
 
       <!-- 每日點餐清單（所有成員） -->
-      <main class="space-y-3">
+      <main class="space-y-6">
         <div 
           v-for="member in members" 
           :key="member.id"
-          class="bg-white rounded-xl p-4 shadow-sm border-2 transition-all"
-          :class="member.id === currentUserId ? 'border-amber-400 ring-2 ring-amber-100' : 'border-transparent'"
+          class="bg-white rounded-3xl p-8 shadow-md border-4 transition-all"
+          :class="member.id === currentUserId ? 'border-amber-400 ring-4 ring-amber-100' : 'border-transparent'"
         >
-          <div class="flex justify-between items-center mb-3">
-            <div class="flex items-center space-x-2">
-              <span class="font-bold text-base">{{ member.name }}</span>
-              <span v-if="member.id === currentUserId" class="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-medium">本人 (可編輯)</span>
+          <div class="flex justify-between items-center mb-6">
+            <div class="flex items-center space-x-3">
+              <span class="font-extrabold text-2xl text-blue-950">{{ member.name }}</span>
+              <span v-if="member.id === currentUserId" class="text-base bg-amber-100 text-amber-900 px-4 py-1 rounded-full font-bold">本人 (可編輯)</span>
             </div>
-            <!-- 狀態標籤：20px，寬度向左拉開 -->
-            <div class="flex items-center space-x-2">
+            <!-- 狀態標籤：40px，寬度向左拉開 -->
+            <div class="flex items-center space-x-4">
               <span v-if="dailyOrders[member.id] && dailyOrders[member.id].length > 0" class="text-emerald-600 status-label-fixed">
                 (成功點餐)
               </span>
               <span v-else class="text-gray-400 status-label-fixed">
                 (尚未點餐)
               </span>
-              <span class="text-sm font-semibold text-gray-600 min-w-[3rem] text-right">
+              <span class="text-2xl font-black text-gray-700 min-w-[5rem] text-right">
                 ${{ getUserTotal(dailyOrders[member.id]) }}
               </span>
             </div>
           </div>
 
           <!-- 非本人：僅顯示點餐結果清單 -->
-          <div v-if="member.id !== currentUserId" class="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg space-y-2">
+          <div v-if="member.id !== currentUserId" class="text-lg text-gray-700 bg-sky-50/80 p-6 rounded-2xl space-y-4 border border-sky-100">
             <template v-if="dailyOrders[member.id] && dailyOrders[member.id].length > 0">
-              <div v-for="(item, idx) in dailyOrders[member.id]" :key="idx" class="border-b last:border-0 pb-1.5 last:pb-0">
-                <div class="font-medium text-gray-800 flex justify-between">
+              <div v-for="(item, idx) in dailyOrders[member.id]" :key="idx" class="border-b border-sky-200 last:border-0 pb-3 last:pb-0">
+                <div class="font-bold text-gray-900 flex justify-between text-xl">
                   <span>{{ item.item }} x{{ item.qty }}</span>
                   <span>${{ getItemUnitPrice(item) * item.qty }}</span>
                 </div>
-                <div class="text-xs text-gray-500">
+                <div class="text-base text-gray-600 mt-1">
                   {{ item.item === '美式' ? item.ice : `${item.sweetness} / ${item.ice}` }}
-                  <span v-if="item.addShot || item.addMilk" class="text-amber-700 font-medium ml-1">
+                  <span v-if="item.addShot || item.addMilk" class="text-amber-700 font-bold ml-2">
                     [{{ [item.addShot ? '加濃縮' : '', item.addMilk ? '加牛奶' : ''].filter(Boolean).join(' + ') }}]
                   </span>
-                  <span v-if="item.note">｜備註: {{ item.note }}</span>
+                  <span v-if="item.note" class="ml-2">｜備註: {{ item.note }}</span>
                 </div>
               </div>
             </template>
             <template v-else>
-              <span class="text-gray-400 italic">尚未點餐</span>
+              <span class="text-gray-400 italic font-medium">尚未點餐</span>
             </template>
           </div>
 
           <!-- 本人：購物車與點餐表單 -->
-          <div v-else class="space-y-4 text-sm">
+          <div v-else class="space-y-6 text-base">
             
             <!-- 目前已加入購物車清單 -->
-            <div v-if="cart.length > 0" class="bg-amber-50/60 rounded-lg p-3 border border-amber-200 space-y-2">
-              <div class="text-xs font-bold text-amber-900 border-b border-amber-200 pb-1 flex justify-between">
+            <div v-if="cart.length > 0" class="bg-amber-50/90 rounded-2xl p-6 border-2 border-amber-300 space-y-4">
+              <div class="text-base font-extrabold text-amber-950 border-b-2 border-amber-200 pb-2 flex justify-between text-lg">
                 <span>🛒 我的點餐清單 (共 {{ myTotalCups }} 杯)</span>
                 <span>小計: ${{ getUserTotal(cart) }}</span>
               </div>
-              <div v-for="(item, idx) in cart" :key="idx" class="flex justify-between items-center text-xs py-1 border-b border-amber-100 last:border-0">
+              <div v-for="(item, idx) in cart" :key="idx" class="flex justify-between items-center py-2 border-b border-amber-200/60 last:border-0">
                 <div>
-                  <span class="font-bold text-amber-900">{{ item.item }}</span>
-                  <span class="text-amber-800 ml-1">x{{ item.qty }}</span>
-                  <span class="text-gray-500 ml-1">
+                  <span class="font-bold text-amber-950 text-lg">{{ item.item }}</span>
+                  <span class="text-amber-800 font-bold ml-2">x{{ item.qty }}</span>
+                  <span class="text-gray-600 ml-2">
                     ({{ item.item === '美式' ? item.ice : `${item.sweetness}/${item.ice}` }})
                   </span>
-                  <span v-if="item.addShot || item.addMilk" class="text-amber-700 font-medium ml-1">
+                  <span v-if="item.addShot || item.addMilk" class="text-amber-800 font-bold ml-2">
                     [{{ [item.addShot ? '加濃縮' : '', item.addMilk ? '加牛奶' : ''].filter(Boolean).join(' + ') }}]
                   </span>
-                  <div v-if="item.note" class="text-gray-400 italic">備註: {{ item.note }}</div>
+                  <div v-if="item.note" class="text-gray-500 italic mt-0.5">備註: {{ item.note }}</div>
                 </div>
-                <div class="flex items-center space-x-2">
-                  <span class="font-bold text-amber-800">${{ getItemUnitPrice(item) * item.qty }}</span>
-                  <button @click="removeFromCart(idx)" class="text-red-500 font-bold px-1 hover:bg-red-100 rounded">✕</button>
+                <div class="flex items-center space-x-4">
+                  <span class="font-extrabold text-amber-900 text-lg">${{ getItemUnitPrice(item) * item.qty }}</span>
+                  <button @click="removeFromCart(idx)" class="text-red-500 font-black text-xl px-2 py-0.5 hover:bg-red-100 rounded-lg">✕</button>
                 </div>
               </div>
             </div>
 
             <!-- 新增飲品表單 -->
-            <div class="bg-gray-50 p-3 rounded-lg space-y-3 border">
-              <div class="text-xs font-bold text-gray-600">➕ 新增飲品到清單</div>
+            <div class="bg-sky-50/70 p-6 rounded-2xl space-y-6 border-2 border-sky-200">
+              <div class="text-lg font-extrabold text-blue-900">➕ 新增飲品到清單</div>
               
-              <!-- 品項選擇（新增巧克力牛奶、摩卡咖啡） -->
-              <div class="grid grid-cols-2 gap-2">
+              <!-- 品項選擇（大幅強化點選對比效果） -->
+              <div class="grid grid-cols-2 gap-4">
                 <button 
                   type="button"
                   v-for="item in ['拿鐵', '美式', '巧克力牛奶', '摩卡咖啡']" 
                   :key="item"
                   @click="selectItem(item)"
-                  class="py-2 border rounded-lg text-center font-medium transition-colors text-xs"
-                  :class="currentItem.item === item ? 'bg-amber-600 text-white border-amber-600 font-bold' : 'bg-white text-gray-700 border-gray-200'"
+                  class="py-4 border-2 rounded-2xl text-center font-extrabold transition-all text-lg duration-150 active:scale-95 shadow-sm"
+                  :class="currentItem.item === item 
+                    ? 'bg-blue-600 text-white border-blue-700 shadow-md ring-4 ring-blue-200 scale-[1.02]' 
+                    : 'bg-white text-gray-700 border-sky-200 hover:border-blue-400 hover:bg-sky-100/50'"
                 >
                   {{ item }} (${{ getPrice(item) }})
                 </button>
               </div>
 
-              <!-- 數量、奶類(糖度)、冰塊 (根據品項動態調整欄位) -->
-              <div class="grid gap-2" :class="currentItem.item === '美式' ? 'grid-cols-2' : 'grid-cols-3'">
+              <!-- 數量、奶類(糖度)、冰塊 -->
+              <div class="grid gap-4" :class="currentItem.item === '美式' ? 'grid-cols-2' : 'grid-cols-3'">
                 <div>
-                  <label class="block text-xs text-gray-500 mb-1">數量</label>
-                  <select v-model.number="currentItem.qty" class="w-full border rounded-lg p-2 bg-white">
+                  <label class="block text-base font-bold text-gray-600 mb-2">數量</label>
+                  <select v-model.number="currentItem.qty" class="w-full border-2 border-sky-200 rounded-xl p-3 bg-white font-bold text-lg focus:border-blue-600">
                     <option v-for="n in 5" :key="n" :value="n">{{ n }} 杯</option>
                   </select>
                 </div>
                 
                 <!-- 僅在非美式時顯示奶類選項 -->
                 <div v-if="currentItem.item !== '美式'">
-                  <label class="block text-xs text-gray-500 mb-1">奶類</label>
-                  <select v-model="currentItem.sweetness" class="w-full border rounded-lg p-2 bg-white">
+                  <label class="block text-base font-bold text-gray-600 mb-2">奶類</label>
+                  <select v-model="currentItem.sweetness" class="w-full border-2 border-sky-200 rounded-xl p-3 bg-white font-bold text-lg focus:border-blue-600">
                     <option v-for="opt in sweetnessOptions" :key="opt" :value="opt">{{ opt }}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label class="block text-xs text-gray-500 mb-1">冰塊</label>
-                  <select v-model="currentItem.ice" class="w-full border rounded-lg p-2 bg-white">
+                  <label class="block text-base font-bold text-gray-600 mb-2">冰塊</label>
+                  <select v-model="currentItem.ice" class="w-full border-2 border-sky-200 rounded-xl p-3 bg-white font-bold text-lg focus:border-blue-600">
                     <option v-for="opt in iceOptions" :key="opt" :value="opt">{{ opt }}</option>
                   </select>
                 </div>
               </div>
 
-              <!-- 加價加選項目按鈕區 -->
+              <!-- 加價加選項目按鈕區（選取效果優化） -->
               <div>
-                <label class="block text-xs text-gray-500 mb-1">加價加選 (可複選)</label>
-                <div class="grid grid-cols-2 gap-2">
+                <label class="block text-base font-bold text-gray-600 mb-2">加價加選 (可複選)</label>
+                <div class="grid grid-cols-2 gap-4">
                   <button 
                     type="button"
                     @click="currentItem.addShot = !currentItem.addShot"
-                    class="py-1.5 border rounded-lg text-xs font-medium transition-colors flex items-center justify-center space-x-1"
-                    :class="currentItem.addShot ? 'bg-amber-100 border-amber-500 text-amber-900 font-bold' : 'bg-white border-gray-200 text-gray-600'"
+                    class="py-3 border-2 rounded-xl text-base font-bold transition-all flex items-center justify-center space-x-2 active:scale-95"
+                    :class="currentItem.addShot 
+                      ? 'bg-amber-500 text-white border-amber-600 font-extrabold shadow-md ring-2 ring-amber-200' 
+                      : 'bg-white border-sky-200 text-gray-700 hover:border-amber-300'"
                   >
                     <span>➕ 濃縮 (+10元)</span>
                   </button>
@@ -224,8 +228,10 @@
                   <button 
                     type="button"
                     @click="currentItem.addMilk = !currentItem.addMilk"
-                    class="py-1.5 border rounded-lg text-xs font-medium transition-colors flex items-center justify-center space-x-1"
-                    :class="currentItem.addMilk ? 'bg-amber-100 border-amber-500 text-amber-900 font-bold' : 'bg-white border-gray-200 text-gray-600'"
+                    class="py-3 border-2 rounded-xl text-base font-bold transition-all flex items-center justify-center space-x-2 active:scale-95"
+                    :class="currentItem.addMilk 
+                      ? 'bg-amber-500 text-white border-amber-600 font-extrabold shadow-md ring-2 ring-amber-200' 
+                      : 'bg-white border-sky-200 text-gray-700 hover:border-amber-300'"
                   >
                     <span>➕ 多一份牛奶 (+10元)</span>
                   </button>
@@ -234,19 +240,19 @@
 
               <!-- 備註 -->
               <div>
-                <label class="block text-xs text-gray-500 mb-1">備註說明</label>
+                <label class="block text-base font-bold text-gray-600 mb-2">備註說明</label>
                 <input 
                   type="text" 
                   v-model="currentItem.note" 
                   placeholder="例如：熱飲、特殊需求..."
-                  class="w-full border rounded-lg px-3 py-1.5 bg-white focus:outline-amber-500 text-sm"
+                  class="w-full border-2 border-sky-200 rounded-xl px-4 py-3 bg-white focus:outline-blue-600 text-lg font-medium"
                 >
               </div>
 
               <button 
                 type="button" 
                 @click="addToCart"
-                class="w-full bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold py-2 rounded-lg transition-colors text-xs"
+                class="w-full bg-amber-400 hover:bg-amber-500 text-amber-950 font-extrabold py-4 rounded-xl transition-all text-lg shadow-md active:scale-95 border-2 border-amber-300"
               >
                 ＋ 加入點餐清單 (單杯 ${{ currentCalculatedPrice }})
               </button>
@@ -256,7 +262,7 @@
             <button 
               type="button"
               @click="saveMyOrders" 
-              class="w-full bg-amber-700 hover:bg-amber-800 text-white font-bold py-2.5 rounded-lg transition-colors shadow-sm"
+              class="w-full bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-xl py-4 rounded-2xl transition-all shadow-lg active:scale-95"
             >
               儲存我的當日點餐 (${{ getUserTotal(cart) }})
             </button>
@@ -265,20 +271,20 @@
       </main>
 
       <!-- 底部總計與 Line 一鍵複製按鈕 -->
-      <footer class="bg-amber-900 text-white rounded-xl p-4 space-y-3 shadow-lg">
+      <footer class="bg-blue-900 text-white rounded-3xl p-8 space-y-6 shadow-2xl border-2 border-blue-800">
         <div class="flex justify-between items-center">
           <div>
-            <div class="text-xs text-amber-200">當日點餐總金額</div>
-            <div class="text-xl font-bold">${{ totalAmount }}</div>
+            <div class="text-base text-sky-200 font-bold">當日點餐總金額</div>
+            <div class="text-4xl font-black text-amber-300">${{ totalAmount }}</div>
           </div>
-          <div class="text-sm text-amber-200">
+          <div class="text-xl text-sky-200 font-bold">
             總杯數：{{ totalCups }} 杯 ({{ orderedUserCount }}/{{ members.length }}人)
           </div>
         </div>
 
         <button 
           @click="copyLineSummary" 
-          class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg transition-colors shadow flex items-center justify-center space-x-2"
+          class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xl py-4 rounded-2xl transition-all shadow-lg active:scale-95 flex items-center justify-center space-x-3"
         >
           <span>📋 複製 Line 點餐摘要清單</span>
         </button>
